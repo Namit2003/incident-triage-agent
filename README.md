@@ -1,72 +1,135 @@
-# LLM Chat Application Template
+# 🚨 Incident Triage Copilot
 
-A simple, ready-to-deploy chat application template powered by Cloudflare Workers AI. This template provides a clean starting point for building AI chat applications with streaming responses.
+A production-ready AI agent application built on **Cloudflare Workers AI** and **Durable Objects** that demonstrates all four core agent components: LLM coordination, workflow orchestration, realtime input, and persistent state management.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/llm-chat-app-template)
+## 🎯 Overview
 
-<!-- dash-content-start -->
+The Incident Triage Copilot helps engineering teams quickly classify and respond to production incidents. Users report an issue, and the agent:
 
-## Demo
+1. **Extracts** structured incident details (service, region, customer impact)
+2. **Asks** clarifying questions when needed
+3. **Classifies** severity based on impact (P0-P4)
+4. **Proposes** actionable next steps
+5. **Generates** a markdown status update for sharing
 
-This template demonstrates how to build an AI-powered chat interface using Cloudflare Workers AI with streaming responses. It features:
+All conversation and incident state persists across sessions using Durable Objects.
 
-- Real-time streaming of AI responses using Server-Sent Events (SSE)
-- Easy customization of models and system prompts
-- Support for AI Gateway integration
-- Clean, responsive UI that works on mobile and desktop
+---
 
-## Features
+## 🏗️ Architecture
 
-- 💬 Simple and responsive chat interface
-- ⚡ Server-Sent Events (SSE) for streaming responses
-- 🧠 Powered by Cloudflare Workers AI LLMs
-- 🛠️ Built with TypeScript and Cloudflare Workers
-- 📱 Mobile-friendly design
-- 🔄 Maintains chat history on the client
-- 🔎 Built-in Observability logging
-<!-- dash-content-end -->
+```mermaid
+graph TB
+    User[User Browser] -->|WebSocket| Worker[Cloudflare Worker]
+    Worker -->|Route by case ID| DO[Durable Object: IncidentCase]
+    DO -->|LLM calls| AI[Workers AI - Llama 3.3]
+    DO -->|Persist state| Storage[DO Storage]
+    
+    subgraph "Durable Object State"
+        Storage -->|messages[]| Messages
+        Storage -->|severity| Severity
+        Storage -->|entities| Entities
+        Storage -->|actions[]| Actions
+        Storage -->|timeline[]| Timeline
+    end
+    
+    Worker -->|Serve static assets| Assets[Static Assets]
+    
+    style DO fill:#f96,stroke:#333,stroke-width:2px
+    style AI fill:#6cf,stroke:#333,stroke-width:2px
+    style Storage fill:#9c6,stroke:#333,stroke-width:2px
+```
 
-## Getting Started
+### Why This Architecture?
+
+**Durable Objects for Coordination**
+- Single-threaded consistency guarantees for incident state
+- Native WebSocket support for real-time chat
+- Co-located storage and logic at the edge
+- One canonical source of truth per case
+
+**Workers AI with Llama 3.3**
+- Fast inference with fp8 quantization
+- Strong instruction following for structured extraction
+- Reliable JSON formatting
+- Runs at the edge with no cold starts
+
+**WebSocket Transport**
+- Bidirectional communication (server can push updates)
+- Lower latency than SSE for realtime coordination
+- Native integration with Durable Objects
+
+---
+
+## ✨ Features
+
+### Core Functionality
+- ✅ **Stateful Workflow**: Deterministic triage steps (extract → clarify → classify → propose → generate)
+- ✅ **Real-time Chat**: WebSocket-based streaming with instant feedback
+- ✅ **Persistent State**: Conversation and case data survive page refreshes
+- ✅ **Smart Classification**: LLM-powered severity assessment (P0-P4)
+- ✅ **Action Proposals**: Context-aware next steps generation
+- ✅ **Export Functionality**: One-click markdown export to clipboard
+
+### UI/UX
+- 🎨 **Modern Dark Theme**: Polished gradient design with micro-animations
+- 📱 **Responsive Layout**: Works on desktop, tablet, and mobile
+- 🔄 **Live Updates**: Case panel updates in real-time as agent processes
+- 📊 **Timeline View**: Track incident progression with timestamps
+- 🎯 **Session Persistence**: Continues from where you left off
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18 or newer)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
-- A Cloudflare account with Workers AI access
+1. **Cloudflare Account** with Workers Paid Plan ($5/month)
+   - Required for Durable Objects
+   - Sign up: https://dash.cloudflare.com
+   
+2. **Node.js** v18+ and npm
+
+3. **Wrangler CLI**
+   ```bash
+   npm install -g wrangler
+   # or use npx wrangler for project-local usage
+   ```
 
 ### Installation
 
-1. Clone this repository:
-
+1. **Clone and install dependencies:**
    ```bash
-   git clone https://github.com/cloudflare/templates.git
-   cd templates/llm-chat-app
-   ```
-
-2. Install dependencies:
-
-   ```bash
+   git clone <repository-url>
+   cd incident-triage-agent
    npm install
    ```
 
-3. Generate Worker type definitions:
+2. **Authenticate with Cloudflare:**
+   ```bash
+   npx wrangler login
+   ```
+
+3. **Generate types:**
    ```bash
    npm run cf-typegen
    ```
 
-### Development
+### Local Development
 
-Start a local development server:
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-This will start a local server at http://localhost:8787.
+The app will be available at **http://localhost:8787**
 
-Note: Using Workers AI accesses your Cloudflare account even during local development, which will incur usage charges.
+> **Note**: Workers AI is accessed even during local development, which will incur usage charges on your Cloudflare account.
 
-### Deployment
+---
+
+## 📦 Deployment
 
 Deploy to Cloudflare Workers:
 
@@ -74,80 +137,325 @@ Deploy to Cloudflare Workers:
 npm run deploy
 ```
 
-### Monitor
+Your app will be deployed to: `https://incident-triage-agent.<your-subdomain>.workers.dev`
 
-View real-time logs associated with any deployed Worker:
+### Post-Deployment
 
-```bash
-npm wrangler tail
+1. Visit the deployed URL
+2. Test the full workflow with a sample incident
+3. Monitor logs with `npx wrangler tail`
+
+---
+
+## 💡 Sample Usage
+
+### Example Incident Report
+
+Paste this into the chat:
+
+```
+Payment API is returning 500 errors in us-west-2.
+About 15% of checkout requests are failing.
+This started 10 minutes ago.
+Customers are seeing "Payment Failed" errors.
 ```
 
-## Project Structure
+### Expected Workflow
+
+1. **Agent extracts entities:**
+   - Service: Payment API
+   - Region: us-west-2
+   - Customer Impact: Checkout failures
+   - Affected Users: ~15%
+
+2. **Agent may ask clarifying questions:**
+   - "How many users are affected?"
+   - "Is this impacting all payment methods?"
+
+3. **Severity classification:**
+   - **P1**: Major degradation, 10-50% users affected
+
+4. **Proposed actions:**
+   - Check error logs in us-west-2
+   - Engage on-call engineer for Payment API
+   - Monitor error rates
+   - Prepare customer communication
+
+5. **Export status update:**
+   - Markdown-formatted incident report
+   - Ready to paste into Slack/PagerDuty/Jira
+
+---
+
+## 🗂️ Project Structure
 
 ```
 /
-├── public/             # Static assets
-│   ├── index.html      # Chat UI HTML
-│   └── chat.js         # Chat UI frontend script
+├── public/              # Frontend assets
+│   ├── index.html       # Two-panel UI (chat + case sidebar)
+│   └── chat.js          # WebSocket client & state management
 ├── src/
-│   ├── index.ts        # Main Worker entry point
-│   └── types.ts        # TypeScript type definitions
-├── test/               # Test files
-├── wrangler.jsonc      # Cloudflare Worker configuration
-├── tsconfig.json       # TypeScript configuration
-└── README.md           # This documentation
+│   ├── index.ts         # Worker entry point
+│   ├── incident-case.ts # Durable Object (core coordination logic)
+│   └── types.ts         # TypeScript definitions
+├── wrangler.jsonc       # Cloudflare Worker configuration
+├── tsconfig.json        # TypeScript configuration
+├── package.json         # Dependencies and scripts
+└── README.md            # This file
 ```
 
-## How It Works
+---
 
-### Backend
+## 🔧 Configuration
 
-The backend is built with Cloudflare Workers and uses the Workers AI platform to generate responses. The main components are:
+### Model Selection
 
-1. **API Endpoint** (`/api/chat`): Accepts POST requests with chat messages and streams responses
-2. **Streaming**: Uses Server-Sent Events (SSE) for real-time streaming of AI responses
-3. **Workers AI Binding**: Connects to Cloudflare's AI service via the Workers AI binding
+The app uses **Llama 3.3 70B Instruct (fp8-fast)**. To change models:
 
-### Frontend
+1. Edit `src/incident-case.ts`:
+   ```typescript
+   const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+   ```
 
-The frontend is a simple HTML/CSS/JavaScript application that:
+2. See available models: [Workers AI Models](https://developers.cloudflare.com/workers-ai/models/)
 
-1. Presents a chat interface
-2. Sends user messages to the API
-3. Processes streaming responses in real-time
-4. Maintains chat history on the client side
+### Severity Rubric
 
-## Customization
+Customize the classification logic in `src/incident-case.ts`:
 
-### Changing the Model
+```typescript
+const TRIAGE_SYSTEM_PROMPT = `...
+- P0: Complete outage, >50% users affected
+- P1: Major degradation, 10-50% users affected
+- P2: Partial degradation, <10% users affected
+- P3: Minor issue, no customer impact
+- P4: Cosmetic issue
+...`;
+```
 
-To use a different AI model, update the `MODEL_ID` constant in `src/index.ts`. You can find available models in the [Cloudflare Workers AI documentation](https://developers.cloudflare.com/workers-ai/models/).
+### AI Gateway (Optional)
 
-### Using AI Gateway
+For rate limiting, caching, and analytics, enable AI Gateway:
 
-The template includes commented code for AI Gateway integration, which provides additional capabilities like rate limiting, caching, and analytics.
+1. Create gateway at https://dash.cloudflare.com/ai/ai-gateway
+2. Update LLM calls in `src/incident-case.ts`:
+   ```typescript
+   const response = await this.env.AI.run(
+     MODEL_ID,
+     { messages, max_tokens: 512 },
+     {
+       gateway: {
+         id: "YOUR_GATEWAY_ID",
+         skipCache: false,
+         cacheTtl: 3600,
+       },
+     }
+   );
+   ```
 
-To enable AI Gateway:
+---
 
-1. [Create an AI Gateway](https://dash.cloudflare.com/?to=/:account/ai/ai-gateway) in your Cloudflare dashboard
-2. Uncomment the gateway configuration in `src/index.ts`
-3. Replace `YOUR_GATEWAY_ID` with your actual AI Gateway ID
-4. Configure other gateway options as needed:
-   - `skipCache`: Set to `true` to bypass gateway caching
-   - `cacheTtl`: Set the cache time-to-live in seconds
+## 🧪 Testing
 
-Learn more about [AI Gateway](https://developers.cloudflare.com/ai-gateway/).
+### Manual Testing Flow
 
-### Modifying the System Prompt
+1. **Open the app** at http://localhost:8787 or your deployed URL
+2. **Check WebSocket connection** in DevTools → Network → WS tab
+3. **Submit test incident** (see Sample Usage above)
+4. **Verify workflow execution:**
+   - ✅ Entities extracted and displayed
+   - ✅ Severity classified (P0-P4 badge appears)
+   - ✅ Actions proposed
+   - ✅ Timeline updates
+5. **Test persistence:** Refresh page, verify case state persists
+6. **Test export:** Click "Export Status Update", verify clipboard
 
-The default system prompt can be changed by updating the `SYSTEM_PROMPT` constant in `src/index.ts`.
+### Console Monitoring
 
-### Styling
+Watch backend logs during development:
 
-The UI styling is contained in the `<style>` section of `public/index.html`. You can modify the CSS variables at the top to quickly change the color scheme.
+```bash
+npm run dev
+# In another terminal:
+npx wrangler tail
+```
 
-## Resources
+---
 
-- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
-- [Cloudflare Workers AI Documentation](https://developers.cloudflare.com/workers-ai/)
+## 📊 API Endpoints
+
+### WebSocket: `/api/case?id={caseId}`
+
+Real-time bidirectional communication with the incident case.
+
+**Client → Server:**
+```json
+{
+  "type": "chat",
+  "message": "Payment API is down"
+}
+```
+
+**Server → Client:**
+```json
+{
+  "type": "message",
+  "message": {
+    "role": "assistant",
+    "content": "I'm analyzing the incident...",
+    "timestamp": 1737515000000
+  }
+}
+```
+
+```json
+{
+  "type": "state_update",
+  "state": {
+    "caseId": "case-123",
+    "severity": "P1",
+    "entities": { ... },
+    "actions": [ ... ],
+    "timeline": [ ... ]
+  }
+}
+```
+
+### REST: `GET /api/case/state?id={caseId}`
+
+Retrieve current case state as JSON.
+
+### REST: `GET /api/case/export?id={caseId}`
+
+Export incident report as markdown.
+
+---
+
+## 🎨 Customization
+
+### Branding
+
+Edit `public/index.html` CSS variables:
+
+```css
+:root {
+  --primary-color: #f6821f;      /* Orange accent */
+  --accent-blue: #3b82f6;        /* Blue highlights */
+  --accent-purple: #8b5cf6;      /* Purple gradients */
+  --bg-dark: #0f172a;            /* Dark background */
+}
+```
+
+### System Prompt
+
+Modify agent behavior in `src/incident-case.ts`:
+
+```typescript
+const TRIAGE_SYSTEM_PROMPT = `
+You are an expert incident triage assistant...
+[customize instructions here]
+`;
+```
+
+---
+
+## 🚧 Known Limitations
+
+- **Case Persistence**: Cases are stored in Durable Objects, not shared across devices
+- **Multi-User**: Designed for single-user workflow (no concurrent editing)
+- **LLM Accuracy**: Extraction and classification depend on LLM output quality
+- **Cost**: Durable Objects incur higher costs than KV (~$0.50/million requests)
+
+---
+
+## 🔒 Security Considerations
+
+- **Input Sanitization**: User input is escaped before rendering in HTML
+- **WebSocket Authentication**: Consider adding auth for production deployments
+- **Rate Limiting**: Use AI Gateway to prevent abuse
+- **CORS**: Configured for same-origin by default
+
+---
+
+## 📈 Future Enhancements
+
+Potential improvements for production use:
+
+- [ ] **Authentication**: Add Cloudflare Access or custom auth
+- [ ] **Multi-User Collaboration**: Real-time co-editing with CRDT
+- [ ] **Integrations**: Post updates to Slack, PagerDuty, Jira
+- [ ] **Metrics**: Track MTTD (mean time to detect) and MTTR
+- [ ] **Advanced Workflows**: Custom runbooks per service
+- [ ] **Voice Input**: Add speech-to-text for incident reporting
+
+---
+
+## 🛠️ Troubleshooting
+
+### WebSocket Connection Fails
+
+**Problem**: Browser shows WebSocket error in console
+
+**Solutions**:
+- Ensure `npm run dev` is running
+- Check wrangler output for errors
+- Verify Durable Objects are enabled on your account (paid plan required)
+
+### LLM Returns Invalid JSON
+
+**Problem**: Entity extraction or classification fails
+
+**Solutions**:
+- Check wrangler logs for the raw LLM response
+- Adjust prompts to be more explicit about JSON formatting
+- Increase `max_tokens` if response is truncated
+
+### Case State Not Persisting
+
+**Problem**: Page refresh loses case data
+
+**Solutions**:
+- Check browser console for errors
+- Verify `sessionStorage` has `caseId`
+- Ensure Durable Object storage calls are succeeding
+
+### Deployment Fails
+
+**Problem**: `npm run deploy` errors
+
+**Solutions**:
+- Run `npx wrangler login` to authenticate
+- Verify `wrangler.jsonc` is valid JSON
+- Check you have a paid Workers plan (required for Durable Objects)
+
+---
+
+## 📚 Resources
+
+- [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
+- [Durable Objects Guide](https://developers.cloudflare.com/durable-objects/)
 - [Workers AI Models](https://developers.cloudflare.com/workers-ai/models/)
+- [AI Gateway](https://developers.cloudflare.com/ai-gateway/)
+- [WebSocket API](https://developers.cloudflare.com/durable-objects/examples/websocket-server/)
+
+---
+
+## 📝 License
+
+MIT License - feel free to use this as a template for your own agent applications.
+
+---
+
+## 🙏 Acknowledgments
+
+Built with:
+- **Cloudflare Workers** - Edge compute platform
+- **Durable Objects** - Stateful coordination primitive
+- **Workers AI** - Edge-native LLM inference
+- **Llama 3.3** - Meta's instruction-tuned model
+
+---
+
+**Questions or feedback?** Open an issue or submit a PR!
+
+🚀 **Ready to ship?** Deploy with `npm run deploy` and start triaging incidents at the edge!

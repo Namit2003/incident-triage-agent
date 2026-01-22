@@ -7,7 +7,10 @@
 	"name": "incident-triage-agent",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-10-08",
-	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
 	"assets": {
 		"binding": "ASSETS",
 		"directory": "./public"
@@ -18,5 +21,21 @@
 	"ai": {
 		"binding": "AI"
 	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "INCIDENT_CASE",
+				"class_name": "IncidentCase"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_classes": [
+				"IncidentCase"
+			]
+		}
+	],
 	"upload_source_maps": true
 }
